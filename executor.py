@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import uuid
 
 from serializer import deserialize_task, serialize_result
 
@@ -20,7 +21,6 @@ async def run_task(func, args, kwargs, task_timeout):
             timeout=task_timeout
         )
 
-    # Support functions that return awaitable objects
     if inspect.isawaitable(result):
         if task_timeout is None:
             result = await result
@@ -39,10 +39,9 @@ async def execute_task(
     retry_delay=1,
     task_timeout=10
 ):
-    """
-    Deserialize and execute a task.
-    Supports automatic retries and timeout handling.
-    """
+    """Execute a serialized task with ID, retries and timeout."""
+
+    task_id = str(uuid.uuid4())
 
     try:
         if not isinstance(task_data, bytes):
@@ -78,6 +77,7 @@ async def execute_task(
                 )
 
                 response = {
+                    "task_id": task_id,
                     "status": "success",
                     "result": result,
                     "attempts": attempt + 1
@@ -88,6 +88,7 @@ async def execute_task(
             except Exception as error:
                 if attempt == max_retries:
                     response = {
+                        "task_id": task_id,
                         "status": "error",
                         "error": str(error),
                         "attempts": attempt + 1
@@ -97,6 +98,7 @@ async def execute_task(
 
     except Exception as error:
         response = {
+            "task_id": task_id,
             "status": "error",
             "error": str(error),
             "attempts": 0

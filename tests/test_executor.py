@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from executor import execute_task
 from serializer import serialize_task, deserialize_result
@@ -54,18 +55,14 @@ def test_task_retry_success():
 
     def temporary_failure():
         attempts["count"] += 1
-
         if attempts["count"] < 2:
             raise ValueError("Temporary failure")
-
         return "Success after retry"
 
     task_data = serialize_task(temporary_failure, (), {})
-
     response_data = asyncio.run(
         execute_task(task_data, max_retries=3, retry_delay=0)
     )
-
     response = deserialize_result(response_data)
 
     assert response["status"] == "success"
@@ -78,16 +75,13 @@ def test_task_retry_failure():
         raise ValueError("Task failed")
 
     task_data = serialize_task(always_fail, (), {})
-
     response_data = asyncio.run(
         execute_task(task_data, max_retries=2, retry_delay=0)
     )
-
     response = deserialize_result(response_data)
 
     assert response["status"] == "error"
     assert response["attempts"] == 3
-    import time
 
 
 def test_sync_task_timeout():
@@ -96,15 +90,9 @@ def test_sync_task_timeout():
         return "Finished"
 
     task_data = serialize_task(slow_task, (), {})
-
     response_data = asyncio.run(
-        execute_task(
-            task_data,
-            max_retries=0,
-            task_timeout=0.1
-        )
+        execute_task(task_data, max_retries=0, task_timeout=0.1)
     )
-
     response = deserialize_result(response_data)
 
     assert response["status"] == "error"
@@ -117,16 +105,31 @@ def test_async_task_timeout():
         return "Finished"
 
     task_data = serialize_task(slow_task, (), {})
-
     response_data = asyncio.run(
-        execute_task(
-            task_data,
-            max_retries=0,
-            task_timeout=0.1
-        )
+        execute_task(task_data, max_retries=0, task_timeout=0.1)
     )
-
     response = deserialize_result(response_data)
 
     assert response["status"] == "error"
     assert response["attempts"] == 1
+
+
+def test_task_id_is_generated():
+    task_data = serialize_task(multiply, (5, 10), {})
+    response_data = asyncio.run(execute_task(task_data))
+    response = deserialize_result(response_data)
+
+    assert "task_id" in response
+    assert len(response["task_id"]) == 36
+
+
+def test_task_ids_are_unique():
+    task_data = serialize_task(multiply, (5, 10), {})
+
+    response1 = asyncio.run(execute_task(task_data))
+    response2 = asyncio.run(execute_task(task_data))
+
+    result1 = deserialize_result(response1)
+    result2 = deserialize_result(response2)
+
+    assert result1["task_id"] != result2["task_id"]
