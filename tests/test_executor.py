@@ -87,3 +87,46 @@ def test_task_retry_failure():
 
     assert response["status"] == "error"
     assert response["attempts"] == 3
+    import time
+
+
+def test_sync_task_timeout():
+    def slow_task():
+        time.sleep(1)
+        return "Finished"
+
+    task_data = serialize_task(slow_task, (), {})
+
+    response_data = asyncio.run(
+        execute_task(
+            task_data,
+            max_retries=0,
+            task_timeout=0.1
+        )
+    )
+
+    response = deserialize_result(response_data)
+
+    assert response["status"] == "error"
+    assert response["attempts"] == 1
+
+
+def test_async_task_timeout():
+    async def slow_task():
+        await asyncio.sleep(1)
+        return "Finished"
+
+    task_data = serialize_task(slow_task, (), {})
+
+    response_data = asyncio.run(
+        execute_task(
+            task_data,
+            max_retries=0,
+            task_timeout=0.1
+        )
+    )
+
+    response = deserialize_result(response_data)
+
+    assert response["status"] == "error"
+    assert response["attempts"] == 1
