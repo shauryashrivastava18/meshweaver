@@ -47,3 +47,43 @@ def test_invalid_task_data():
     response = deserialize_result(response_data)
 
     assert response["status"] == "error"
+
+
+def test_task_retry_success():
+    attempts = {"count": 0}
+
+    def temporary_failure():
+        attempts["count"] += 1
+
+        if attempts["count"] < 2:
+            raise ValueError("Temporary failure")
+
+        return "Success after retry"
+
+    task_data = serialize_task(temporary_failure, (), {})
+
+    response_data = asyncio.run(
+        execute_task(task_data, max_retries=3, retry_delay=0)
+    )
+
+    response = deserialize_result(response_data)
+
+    assert response["status"] == "success"
+    assert response["result"] == "Success after retry"
+    assert response["attempts"] == 2
+
+
+def test_task_retry_failure():
+    def always_fail():
+        raise ValueError("Task failed")
+
+    task_data = serialize_task(always_fail, (), {})
+
+    response_data = asyncio.run(
+        execute_task(task_data, max_retries=2, retry_delay=0)
+    )
+
+    response = deserialize_result(response_data)
+
+    assert response["status"] == "error"
+    assert response["attempts"] == 3
