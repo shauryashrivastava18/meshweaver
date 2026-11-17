@@ -1,19 +1,48 @@
-import socket
 
-# Create UDP socket
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+import asyncio
 
-# Bind server to localhost and port 12345
-server_socket.bind(("127.0.0.1", 12345))
+class UDPServer(asyncio.DatagramProtocol):
 
-print("UDP Server is running...")
+    def connection_made(self, transport):
+        self.transport = transport
+        print("UDP Server is running...")
 
-while True:
-    data, client_address = server_socket.recvfrom(1024)
+    def datagram_received(self, data, addr):
+        try:
+            message = data.decode().strip()
+            print(f"Received from {addr}: {message}")
 
-    message = data.decode()
+            if message == "PING":
+                self.transport.sendto(b"PONG", addr)
+                print(f"Sent PONG to {addr}")
+            else:
+                print("Invalid message received")
 
-    print(f"Received from {client_address}: {message}")
+        except Exception as error:
+            print(f"Communication error: {error}")
 
-    response = "Message received successfully"
-    server_socket.sendto(response.encode(), client_address)
+    def error_received(self, error):
+        print(f"Communication error occurred: {error}")
+        if getattr(error, "winerror", None) == 10054:
+            print("A UDP client may have closed its connection.")
+
+
+async def main():
+    loop = asyncio.get_running_loop()
+
+    transport, protocol = await loop.create_datagram_endpoint(
+        UDPServer,
+        local_addr=("127.0.0.1", 12345)
+    )
+
+    try:
+        await asyncio.Future()
+    finally:
+        transport.close()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nUDP Server stopped.")
