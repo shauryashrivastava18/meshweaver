@@ -9,12 +9,16 @@ class UDPServer(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         try:
-            message = data.decode().strip()
+            message = data.decode().strip().upper()
             print(f"Received from {addr}: {message}")
 
             if message == "PING":
                 self.transport.sendto(b"PONG", addr)
                 print(f"Sent PONG to {addr}")
+
+            elif message == "":
+                print("Empty message received")
+
             else:
                 print("Invalid message received")
 
