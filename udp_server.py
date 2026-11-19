@@ -2,6 +2,10 @@
 import asyncio
 import socket
 
+# Server configuration
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 12345
+
 
 class UDPServer(asyncio.DatagramProtocol):
 
@@ -41,8 +45,8 @@ async def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setblocking(False)
 
-    # Bind socket to IP address and port
-    sock.bind(("127.0.0.1", 12345))
+    # Bind socket to configured IP address and port
+    sock.bind((SERVER_IP, SERVER_PORT))
 
     # Create asynchronous UDP server
     transport, protocol = await loop.create_datagram_endpoint(
@@ -50,7 +54,7 @@ async def main():
         sock=sock
     )
 
-    print("Server listening on 127.0.0.1:12345")
+    print(f"Server listening on {SERVER_IP}:{SERVER_PORT}")
 
     try:
         await asyncio.Future()
