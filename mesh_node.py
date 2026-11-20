@@ -1,5 +1,4 @@
 
-import socket
 import uuid
 
 
@@ -8,6 +7,18 @@ class MeshNode:
         self.node_id = str(uuid.uuid4())
         self.host = host
         self.port = port
+        self.status = "initialized"
+
+    def start(self):
+        self.status = "running"
+        print(f"Node {self.node_id} started!")
+
+    def stop(self):
+        self.status = "stopped"
+        print(f"Node {self.node_id} stopped!")
+
+    def get_status(self):
+        return self.status
 
     def get_node_info(self):
         return {
@@ -22,3 +33,9 @@ if __name__ == "__main__":
 
     print("Mesh Node Initialized!")
     print(node.get_node_info())
+
+    node.start()
+    print("Current Status:", node.get_status())
+
+    node.stop()
+    print("Current Status:", node.get_status())
