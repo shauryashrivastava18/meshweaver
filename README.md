@@ -80,3 +80,26 @@ python main.py
 Week 1 basic modules and initial unit tests have been completed.
 
 UDP communication, remote task execution and further integration are still under development.
+## 9. Week 2 Backend Progress
+
+### Implemented Modules
+
+- MeshNode lifecycle management.
+- Peer Registry for managing peer information.
+- Bootstrap module for basic network joining.
+- Message Handler for PING, PONG and JOIN messages.
+- Integration of backend modules.
+
+### Testing Results
+
+- MeshNode tests: 3 passed.
+- Peer Registry tests: 5 passed.
+- Message Handler tests: 6 passed.
+- Total project tests: 47 passed.
+
+### Pending Integration
+
+- Kademlia DHT.
+- Gossip Protocol.
+- Peer-to-Peer Communication.
+- 10-node network discovery testing.
