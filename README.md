@@ -33,39 +33,48 @@ meshweaver/
 ├── tests/
 │   ├── __init__.py
 │   ├── test_protocol.py
-│   └── test_mesh_node.py
+│   ├── test_mesh_node.py
+│   ├── test_peer_registry.py
+│   └── test_message_handler.py
 │
 ├── protocol.py
 ├── mesh_node.py
 ├── integration.py
+├── bootstrap.py
+├── peer_registry.py
+├── message_handler.py
 ├── main.py
 └── README.md
 ```
 
 ## 5. Current Implementation
 
-The following basic modules have been implemented:
+The following modules have been implemented:
 
 - protocol.py: Creates and decodes messages.
 - mesh_node.py: Initializes a mesh node with a unique ID, host and port.
+- peer_registry.py: Manages peer information.
+- bootstrap.py: Provides a basic network joining workflow.
+- message_handler.py: Handles PING, PONG and JOIN messages.
+- integration.py: Integrates the backend modules.
 - main.py: Starts the MeshWeaver application.
-- integration.py: Prepares PING messages and processes responses.
 
 ## 6. Testing
 
-Unit tests are written using Python's unittest framework.
+Unit tests are written using Python's pytest framework.
 
 To run all tests:
 
 ```bash
-python -m unittest discover -s tests -v
+python -m pytest -v
 ```
 
 ### Current Test Results
 
-- Protocol tests: 3 passed.
-- Mesh Node tests: 3 passed.
-- Total: 6 tests passed.
+- MeshNode tests: 3 passed.
+- Peer Registry tests: 5 passed.
+- Message Handler tests: 6 passed.
+- Total project tests: 47 passed (previously reported).
 
 ## 7. How to Run
 
@@ -79,7 +88,8 @@ python main.py
 
 Week 1 basic modules and initial unit tests have been completed.
 
-UDP communication, remote task execution and further integration are still under development.
+Week 2 backend development and basic module integration are in progress.
+
 ## 9. Week 2 Backend Progress
 
 ### Implemented Modules
@@ -95,7 +105,7 @@ UDP communication, remote task execution and further integration are still under
 - MeshNode tests: 3 passed.
 - Peer Registry tests: 5 passed.
 - Message Handler tests: 6 passed.
-- Total project tests: 47 passed.
+- Total project tests: 47 passed (previously reported).
 
 ### Pending Integration
 
