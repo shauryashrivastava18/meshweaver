@@ -113,3 +113,92 @@ Week 2 backend development and basic module integration are in progress.
 - Gossip Protocol.
 - Peer-to-Peer Communication.
 - 10-node network discovery testing.
+
+## 10. Backend Architecture
+
+MeshWeaver follows a modular backend architecture where each component
+has a specific responsibility.
+
+### 10.1 Node Management
+
+The MeshNode module manages the identity and lifecycle of each node.
+
+- Generates a unique node ID.
+- Stores host and port information.
+- Supports node initialization.
+- Tracks node status.
+- Provides node information.
+
+### 10.2 Peer Registry
+
+The PeerRegistry module manages information about known peers.
+
+- Add new peers.
+- Remove existing peers.
+- Retrieve peer information.
+- Update peer details.
+- Maintain a collection of known peers.
+
+### 10.3 Bootstrap Management
+
+The Bootstrap module provides the initial network joining workflow.
+
+- Initializes the bootstrap process.
+- Handles the basic network joining workflow.
+- Registers bootstrap peer information.
+- Connects the joining workflow with the peer registry.
+
+### 10.4 Message Handling
+
+The MessageHandler module processes incoming application messages.
+
+Supported message types include:
+
+- PING
+- PONG
+- JOIN
+- FIND_NODE (pending integration)
+- STORE (pending integration)
+- GOSSIP (pending integration)
+
+### 10.5 Backend Integration
+
+The MeshIntegration module connects the core backend components.
+
+It coordinates node initialization, peer registry,
+bootstrap operations and message handling.
+
+## 11. Testing Strategy
+
+The project uses automated tests to verify individual modules.
+
+Testing includes:
+
+- Node initialization and lifecycle testing.
+- Peer registration and removal testing.
+- Peer information update testing.
+- Message validation testing.
+- PING and PONG message handling.
+- Invalid message handling.
+- Backend integration checks.
+
+Run the complete test suite using:
+
+```bash
+python -m pytest -v
+```
+
+## 12. Future Development
+
+The following features are planned for upcoming development:
+
+1. Kademlia Distributed Hash Table.
+2. Dynamic peer discovery.
+3. Gossip-based resource sharing.
+4. CPU and RAM monitoring.
+5. Asynchronous peer-to-peer communication.
+6. Task routing based on node resources.
+7. Heartbeat monitoring.
+8. Secure communication using TLS/SSL.
+9. Cryptographic message signatures.
+10. Multi-node network testing.
