@@ -71,29 +71,72 @@ class RoutingTable:
                 f"XOR Distance: {distance}"
             )
 
+    def find_closest_peers(self, target_id, count=3):
+        """Find the closest peers to a target node ID."""
+
+        if not isinstance(target_id, int) or isinstance(target_id, bool):
+            raise TypeError("Target ID must be an integer.")
+
+        if target_id < 0:
+            raise ValueError("Target ID must be non-negative.")
+
+        if not isinstance(count, int) or isinstance(count, bool):
+            raise TypeError("Count must be an integer.")
+
+        if count <= 0:
+            raise ValueError("Count must be positive.")
+
+        closest_peers = sorted(
+            self.peers.items(),
+            key=lambda peer: xor_distance(peer[0], target_id)
+        )
+
+        return closest_peers[:count]
+
 
 if __name__ == "__main__":
 
     print("Kademlia XOR Distance Calculator")
 
+    # XOR distance tests
     assert xor_distance(10, 12) == 6
     assert xor_distance(10, 10) == 0
     assert xor_distance(12, 10) == 6
 
     print("XOR distance tests passed!")
 
-    # Create a routing table for local node 10
+    # Create routing table
     routing_table = RoutingTable(local_node_id=10)
 
-    # Add three peers
+    # Add peers
     routing_table.add_peer(12, "127.0.0.1", 5001)
     routing_table.add_peer(15, "127.0.0.1", 5002)
     routing_table.add_peer(20, "127.0.0.1", 5003)
 
-    # Try adding a fourth peer
-    routing_table.add_peer(25, "127.0.0.1", 5004)
-
-    # Display stored peers
+    # Display routing table
     routing_table.display_peers()
 
-    print("\nAll tests completed!")
+    # Perform node lookup
+    target_id = 14
+
+    print(f"\nFinding closest peers to target ID: {target_id}")
+
+    closest_peers = routing_table.find_closest_peers(
+        target_id, count=3
+    )
+
+    for node_id, details in closest_peers:
+        distance = xor_distance(node_id, target_id)
+
+        print(
+            f"Node ID: {node_id}, "
+            f"XOR Distance: {distance}, "
+            f"IP: {details['ip_address']}, "
+            f"Port: {details['port']}"
+        )
+
+    # Verify closest peer
+    assert closest_peers[0][0] == 15
+
+    print("\nNode lookup tests passed!")
+    print("All tests completed!")
