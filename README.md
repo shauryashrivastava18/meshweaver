@@ -202,3 +202,111 @@ The following features are planned for upcoming development:
 8. Secure communication using TLS/SSL.
 9. Cryptographic message signatures.
 10. Multi-node network testing.
+
+## 13. Backend Module API Reference
+
+### 13.1 MeshNode Class
+
+The MeshNode class represents an individual node in the MeshWeaver network.
+
+Available methods:
+
+- `__init__()` initializes a node.
+- `start()` changes the node status to running.
+- `stop()` changes the node status to stopped.
+- `get_status()` returns the current node status.
+- `get_node_info()` returns node identification details.
+
+Example:
+
+```python
+from mesh_node import MeshNode
+
+node = MeshNode(host="127.0.0.1", port=5000)
+
+node.start()
+print(node.get_node_info())
+print(node.get_status())
+node.stop()
+```
+
+### 13.2 PeerRegistry Class
+
+The PeerRegistry class maintains information about known peers.
+
+Available methods:
+
+- `add_peer()` registers a new peer.
+- `remove_peer()` removes an existing peer.
+- `get_peer()` retrieves a specific peer.
+- `get_all_peers()` returns all registered peers.
+- `update_peer()` updates peer information.
+- `get_peer_count()` returns the number of registered peers.
+
+### 13.3 Bootstrap Class
+
+The Bootstrap class manages the basic network joining workflow.
+
+Responsibilities:
+
+- Initialize the bootstrap component.
+- Identify the local node.
+- Accept optional bootstrap peer information.
+- Register bootstrap peer information.
+- Provide a basic network joining operation.
+
+Available method:
+
+- `join_network()` starts the basic joining workflow.
+
+### 13.4 MessageHandler Class
+
+The MessageHandler class processes application-level messages.
+
+Supported message operations:
+
+- PING: Checks node availability.
+- PONG: Handles ping responses.
+- JOIN: Registers peer information.
+- FIND_NODE: Reserved for Kademlia integration.
+- STORE: Reserved for Kademlia integration.
+- GOSSIP: Reserved for Gossip integration.
+
+The handler also validates incoming message formats
+and reports invalid or unsupported messages.
+
+### 13.5 Integration Workflow
+
+The MeshIntegration class coordinates the core backend modules.
+
+The basic workflow includes:
+
+1. Initialize the MeshNode.
+2. Create the PeerRegistry.
+3. Initialize the Bootstrap component.
+4. Initialize the MessageHandler.
+5. Start the node.
+6. Prepare application messages.
+7. Process messages.
+8. Stop the node.
+
+### 13.6 Error Handling
+
+The current backend includes basic validation for:
+
+- Missing message types.
+- Invalid message formats.
+- Missing peer identifiers.
+- Unknown message types.
+- Invalid peer registration requests.
+
+### 13.7 Future Improvements
+
+Further development will focus on:
+
+- Actual network-based bootstrap operations.
+- Dynamic peer discovery.
+- Distributed routing tables.
+- Resource-aware task scheduling.
+- Improved network failure handling.
+- Secure remote task execution.
