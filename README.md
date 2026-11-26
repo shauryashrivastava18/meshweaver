@@ -45,3 +45,39 @@ Execution Result
        |
        v
 Peer A (Client)
+## Gossip Propagation
+
+MeshWeaver includes a GossipRouter for propagating messages between connected peers.
+
+Features:
+- Gossip message publishing
+- Message ID-based duplicate prevention
+- Hop-count limits
+- Message expiration and cleanup
+- Forwarding messages to connected peers
+- Gossip propagation across multiple peers
+
+## Peer Health Monitoring
+
+MeshWeaver includes a PeerMonitor for maintaining peer connectivity.
+
+Features:
+- Periodic PING messages
+- PONG responses
+- Heartbeat timeout detection
+- Disconnection of unresponsive peers
+- Automatic reconnection attempts
+- Configurable heartbeat and reconnection intervals
+
+## Peer Communication Testing
+
+The test suite includes:
+- Message serialization tests
+- Peer registry tests
+- TCP communication tests
+- Kademlia message transport tests
+- Gossip propagation tests
+- Heartbeat monitoring tests
+- Three-peer TCP integration tests
+
+Latest verified test result: 48 passed.
