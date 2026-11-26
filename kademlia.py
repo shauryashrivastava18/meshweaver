@@ -50,6 +50,39 @@ class RoutingTable:
 
         print(f"Peer {node_id} added successfully.")
 
+    def discover_peer(self, node_id, ip_address, port):
+        """Discover and add a new peer dynamically."""
+
+        if not isinstance(node_id, int) or isinstance(node_id, bool):
+            raise TypeError("Node ID must be an integer.")
+
+        if node_id < 0:
+            raise ValueError("Node ID must be non-negative.")
+
+        if not isinstance(ip_address, str) or not ip_address.strip():
+            raise ValueError("A valid IP address is required.")
+
+        if not isinstance(port, int) or isinstance(port, bool):
+            raise TypeError("Port must be an integer.")
+
+        if not 1 <= port <= 65535:
+            raise ValueError("Port must be between 1 and 65535.")
+
+        if node_id == self.local_node_id:
+            print("Cannot discover the local node.")
+            return False
+
+        if node_id in self.peers:
+            print(f"Peer {node_id} is already known.")
+            return False
+
+        if len(self.peers) >= self.bucket_size:
+            print("Routing table is full. Cannot discover peer.")
+            return False
+
+        self.add_peer(node_id, ip_address, port)
+        return node_id in self.peers
+
     def display_peers(self):
         """Display all stored peers."""
 
@@ -60,9 +93,7 @@ class RoutingTable:
             return
 
         for node_id, details in self.peers.items():
-            distance = xor_distance(
-                self.local_node_id, node_id
-            )
+            distance = xor_distance(self.local_node_id, node_id)
 
             print(
                 f"Node ID: {node_id}, "
@@ -96,27 +127,50 @@ class RoutingTable:
 
 if __name__ == "__main__":
 
-    print("Kademlia XOR Distance Calculator")
+    print("Kademlia DHT Implementation")
 
     # XOR distance tests
     assert xor_distance(10, 12) == 6
     assert xor_distance(10, 10) == 0
     assert xor_distance(12, 10) == 6
 
-    print("XOR distance tests passed!")
+    print("\nXOR distance tests passed!")
 
     # Create routing table
-    routing_table = RoutingTable(local_node_id=10)
+    routing_table = RoutingTable(local_node_id=10, bucket_size=5)
 
-    # Add peers
+    # Add initial peers
     routing_table.add_peer(12, "127.0.0.1", 5001)
     routing_table.add_peer(15, "127.0.0.1", 5002)
     routing_table.add_peer(20, "127.0.0.1", 5003)
 
-    # Display routing table
+    # Display initial peers
     routing_table.display_peers()
 
-    # Perform node lookup
+    # Dynamic peer discovery
+    print("\n--- Dynamic Peer Discovery ---")
+
+    result = routing_table.discover_peer(
+        25, "127.0.0.1", 5004
+    )
+    assert result is True
+
+    # Test duplicate peer
+    result = routing_table.discover_peer(
+        25, "127.0.0.1", 5004
+    )
+    assert result is False
+
+    # Test local node rejection
+    result = routing_table.discover_peer(
+        10, "127.0.0.1", 5005
+    )
+    assert result is False
+
+    print("\nUpdated routing table:")
+    routing_table.display_peers()
+
+    # Node lookup
     target_id = 14
 
     print(f"\nFinding closest peers to target ID: {target_id}")
@@ -135,8 +189,7 @@ if __name__ == "__main__":
             f"Port: {details['port']}"
         )
 
-    # Verify closest peer
     assert closest_peers[0][0] == 15
 
     print("\nNode lookup tests passed!")
-    print("All tests completed!")
+    print("All tests completed successfully!")
