@@ -310,3 +310,32 @@ Further development will focus on:
 - Resource-aware task scheduling.
 - Improved network failure handling.
 - Secure remote task execution.
+## 14. Peer Information Validation
+
+`peer_validation.py` provides a reusable `validate_peer_info()` helper. It checks that a peer has a non-empty `node_id`, a non-empty `host`, and an integer `port` from 1 through 65535. Invalid peer data raises `ValueError`; valid data returns `True`.
+
+Example:
+
+```python
+from peer_validation import validate_peer_info
+
+peer = {"node_id": "node-001", "host": "127.0.0.1", "port": 5001}
+validate_peer_info(peer)
+### Validation Rules
+
+The helper checks the peer information before it is used by the application:
+
+- `peer_info` must be a dictionary.
+- `node_id` must be a non-empty string that identifies the peer.
+- `host` must be a non-empty string containing the peer's network address or hostname.
+- `port` must be an integer from 1 to 65535. Boolean values such as `True` and `False` are rejected.
+
+The function returns `True` when all fields are valid. It raises `ValueError` with a message describing the invalid field when validation fails.
+
+Example of handling invalid peer information:
+
+```python
+try:
+    validate_peer_info({"node_id": "node-001", "host": "", "port": 5001})
+except ValueError as error:
+    print(f"Invalid peer: {error}")
