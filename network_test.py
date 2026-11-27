@@ -2,8 +2,15 @@
 import asyncio
 import sys
 
-from serializer import serialize_task, serialize_result, deserialize_result
+from serializer import (
+    serialize_task,
+    serialize_result,
+    deserialize_result
+)
 from task_manager import TaskManager
+
+
+MAX_MESSAGE_SIZE = 10 * 1024 * 1024
 
 
 def complex_math(n):
@@ -15,61 +22,129 @@ def complex_math(n):
     return total
 
 
-async def handle_client(reader, writer, task_manager):
-    print("Client connected!")
+def extract_task_result(task_response):
+    """
+    Extract the actual result from TaskManager's response.
+    """
 
+    if isinstance(task_response, dict):
+        if task_response.get("status") == "completed":
+            return {
+                "status": "completed",
+                "result": task_response.get("result")
+            }
+
+        return {
+            "status": "error",
+            "message": (
+                task_response.get("error")
+                or "Task execution failed"
+            )
+        }
+
+    return {
+        "status": "completed",
+        "result": task_response
+    }
+
+
+async def send_message(writer, message):
+    if len(message) > MAX_MESSAGE_SIZE:
+        raise ValueError("Message size exceeds 10 MB limit")
+
+    writer.write(len(message).to_bytes(4, "big"))
+    writer.write(message)
+
+    await writer.drain()
+
+
+async def receive_message(reader):
+    size_data = await reader.readexactly(4)
+
+    message_size = int.from_bytes(size_data, "big")
+
+    if message_size > MAX_MESSAGE_SIZE:
+        raise ValueError("Message size exceeds 10 MB limit")
+
+    return await reader.readexactly(message_size)
+
+
+async def handle_peer(reader, writer, task_manager):
     try:
-        size_data = await reader.readexactly(8)
-        task_size = int.from_bytes(size_data, "big")
+        # Receive serialized task
+        task_data = await receive_message(reader)
 
-        task_data = await reader.readexactly(task_size)
-
-        print("Task received!")
-        print("Submitting task to Task Manager...")
-
-        # submit_task is synchronous: do not use await
+        # Submit task to TaskManager
         task_id = task_manager.submit_task(task_data)
 
-        # wait_for_task is asynchronous
-        result = await task_manager.wait_for_task(task_id)
+        # Wait for task execution
+        task_response = await task_manager.wait_for_task(task_id)
 
-        response = serialize_result({
-            "status": "completed",
-            "result": result
-        })
+        # Extract only the actual execution result
+        response = extract_task_result(task_response)
 
-        writer.write(len(response).to_bytes(8, "big"))
-        writer.write(response)
-        await writer.drain()
+        # Serialize and send response
+        response_data = serialize_result(response)
 
-        print("Remote task completed!")
-        print("Result:", result)
+        await send_message(writer, response_data)
 
     except Exception as error:
         print("Server error:", repr(error))
 
         try:
-            response = serialize_result({
+            error_response = serialize_result({
                 "status": "error",
                 "message": str(error)
             })
-            writer.write(len(response).to_bytes(8, "big"))
-            writer.write(response)
-            await writer.drain()
+
+            await send_message(writer, error_response)
+
         except Exception as send_error:
             print("Response error:", repr(send_error))
 
     finally:
         writer.close()
-        await writer.wait_closed()
+
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+
+async def send_task(host, port, task_data):
+    reader, writer = await asyncio.open_connection(
+        host,
+        port
+    )
+
+    try:
+        # Send task to remote node
+        await send_message(writer, task_data)
+
+        # Receive task result
+        response_data = await receive_message(reader)
+
+        response = deserialize_result(response_data)
+
+        return response
+
+    finally:
+        writer.close()
+
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 
 async def start_server():
     task_manager = TaskManager()
 
     server = await asyncio.start_server(
-        lambda reader, writer: handle_client(
-            reader, writer, task_manager
+        lambda reader, writer: handle_peer(
+            reader,
+            writer,
+            task_manager
         ),
         "127.0.0.1",
         8888
@@ -78,55 +153,45 @@ async def start_server():
     print("MeshWeaver Server running on 127.0.0.1:8888")
     print("Waiting for remote tasks...")
 
-    async with server:
-        await server.serve_forever()
-
-
-async def send_task():
-    reader, writer = await asyncio.open_connection(
-        "127.0.0.1",
-        8888
-    )
-
     try:
-        print("Connected to remote server!")
-
-        task_data = serialize_task(
-            complex_math,
-            (1000,),
-            {}
-        )
-
-        writer.write(len(task_data).to_bytes(8, "big"))
-        writer.write(task_data)
-        await writer.drain()
-
-        print("Complex task sent!")
-
-        size_data = await reader.readexactly(8)
-        result_size = int.from_bytes(size_data, "big")
-
-        response_data = await reader.readexactly(result_size)
-        response = deserialize_result(response_data)
-
-        print("Server response:", response)
-
-        if response["status"] == "completed":
-            print("Remote execution result:", response["result"])
-        else:
-            print("Remote execution failed:", response["message"])
+        async with server:
+            await server.serve_forever()
 
     finally:
-        writer.close()
-        await writer.wait_closed()
+        await task_manager.close()
+
+
+async def start_client():
+    task_data = serialize_task(
+        complex_math,
+        (1000,),
+        {}
+    )
+
+    response = await send_task(
+        "127.0.0.1",
+        8888,
+        task_data
+    )
+
+    print("Server response:", response)
+
+    if response["status"] == "completed":
+        print("Remote execution result:", response["result"])
+    else:
+        print("Remote execution failed:", response["message"])
 
 
 if __name__ == "__main__":
+
     if len(sys.argv) < 2:
         print("Usage: python network_test.py server/client")
+
     elif sys.argv[1] == "server":
         asyncio.run(start_server())
+
     elif sys.argv[1] == "client":
-        asyncio.run(send_task())
+        asyncio.run(start_client())
+
     else:
         print("Invalid argument. Use server or client.")
