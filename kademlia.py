@@ -18,7 +18,7 @@ def xor_distance(node_id_a, node_id_b):
 class RoutingTable:
     """Kademlia routing table using XOR-distance buckets."""
 
-    def __init__(self, local_node_id, bucket_size=3, max_peers=None):
+    def __init__(self, local_node_id, bucket_size=20, max_peers=None):
 
         if not isinstance(local_node_id, int) or isinstance(local_node_id, bool):
             raise TypeError("Local node ID must be an integer.")

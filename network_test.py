@@ -1,201 +1,132 @@
+
 import asyncio
-import argparse
-import struct
+import sys
 
-from serializer import (
-    serialize_task,
-    deserialize_result,
-    serialize_result
-)
-
+from serializer import serialize_task, serialize_result, deserialize_result
 from task_manager import TaskManager
 
 
-HOST = "127.0.0.1"
-PORT = 8888
-MAX_MESSAGE_SIZE = 10 * 1024 * 1024
+def complex_math(n):
+    total = 0
+
+    for i in range(1, n + 1):
+        total += i**2 + 3 * i + 5
+
+    return total
 
 
-def multiply(a, b):
-    return a * b
-
-
-async def send_message(writer, data):
-    """Send a length-prefixed network message."""
-
-    if not isinstance(data, bytes):
-        raise TypeError("Message must be bytes")
-
-    if len(data) > MAX_MESSAGE_SIZE:
-        raise ValueError("Message is too large")
-
-    writer.write(struct.pack("!I", len(data)) + data)
-    await writer.drain()
-
-
-async def receive_message(reader):
-    """Receive a length-prefixed network message."""
-
-    header = await reader.readexactly(4)
-    size = struct.unpack("!I", header)[0]
-
-    if size > MAX_MESSAGE_SIZE:
-        raise ValueError("Message is too large")
-
-    return await reader.readexactly(size)
-
-
-async def handle_peer(reader, writer, manager):
-    """Receive a task, submit it to TaskManager and return its result."""
-
-    address = writer.get_extra_info("peername")
-    print(f"\nConnected to peer: {address}")
+async def handle_client(reader, writer, task_manager):
+    print("Client connected!")
 
     try:
-        task_data = await receive_message(reader)
+        size_data = await reader.readexactly(8)
+        task_size = int.from_bytes(size_data, "big")
+
+        task_data = await reader.readexactly(task_size)
 
         print("Task received!")
         print("Submitting task to Task Manager...")
 
-        task_id = manager.submit_task(
-            task_data,
-            priority=0
-        )
+        # submit_task is synchronous: do not use await
+        task_id = task_manager.submit_task(task_data)
 
-        result = await manager.wait_for_task(task_id)
+        # wait_for_task is asynchronous
+        result = await task_manager.wait_for_task(task_id)
 
-        response_data = serialize_result(result)
+        response = serialize_result({
+            "status": "completed",
+            "result": result
+        })
 
-        await send_message(writer, response_data)
+        writer.write(len(response).to_bytes(8, "big"))
+        writer.write(response)
+        await writer.drain()
 
         print("Remote task completed!")
-        print("Task ID:", task_id)
-        print("Status:", result["status"])
+        print("Result:", result)
 
     except Exception as error:
-        error_response = {
-            "status": "error",
-            "error": str(error)
-        }
+        print("Server error:", repr(error))
 
         try:
-            await send_message(
-                writer,
-                serialize_result(error_response)
-            )
-        except Exception:
-            pass
-
-        print("Network error:", error)
-
-    finally:
-        writer.close()
-
-        try:
-            await writer.wait_closed()
-        except Exception:
-            pass
-
-
-async def start_server():
-    """Start a TCP peer with an integrated Task Manager."""
-
-    manager = TaskManager(
-        max_retries=3,
-        retry_delay=1,
-        task_timeout=10,
-        max_concurrency=4
-    )
-
-    server = await asyncio.start_server(
-        lambda reader, writer: handle_peer(
-            reader,
-            writer,
-            manager
-        ),
-        HOST,
-        PORT
-    )
-
-    print(f"MeshWeaver Peer B running on {HOST}:{PORT}")
-    print("Task Manager connected!")
-    print("Waiting for remote tasks...")
-
-    try:
-        async with server:
-            await server.serve_forever()
-
-    finally:
-        await manager.close()
-
-
-async def send_task(host, port, task_data):
-    """Send a task to a remote peer and retrieve its result."""
-
-    reader, writer = await asyncio.open_connection(
-        host,
-        port
-    )
-
-    try:
-        await send_message(writer, task_data)
-
-        response_data = await receive_message(reader)
-
-        return deserialize_result(response_data)
+            response = serialize_result({
+                "status": "error",
+                "message": str(error)
+            })
+            writer.write(len(response).to_bytes(8, "big"))
+            writer.write(response)
+            await writer.drain()
+        except Exception as send_error:
+            print("Response error:", repr(send_error))
 
     finally:
         writer.close()
         await writer.wait_closed()
 
 
-async def start_client():
-    """Submit an example remote task."""
+async def start_server():
+    task_manager = TaskManager()
 
-    task_data = serialize_task(
-        multiply,
-        (10, 20),
-        {}
+    server = await asyncio.start_server(
+        lambda reader, writer: handle_client(
+            reader, writer, task_manager
+        ),
+        "127.0.0.1",
+        8888
     )
 
-    print("Sending task to Peer B...")
+    print("MeshWeaver Server running on 127.0.0.1:8888")
+    print("Waiting for remote tasks...")
 
-    response = await send_task(
-        HOST,
-        PORT,
-        task_data
+    async with server:
+        await server.serve_forever()
+
+
+async def send_task():
+    reader, writer = await asyncio.open_connection(
+        "127.0.0.1",
+        8888
     )
 
-    print("\n========== REMOTE TASK RESULT ==========")
+    try:
+        print("Connected to remote server!")
 
-    print("Status:", response["status"])
+        task_data = serialize_task(
+            complex_math,
+            (1000,),
+            {}
+        )
 
-    if response["status"] == "completed":
-        print("Result:", response["result"])
+        writer.write(len(task_data).to_bytes(8, "big"))
+        writer.write(task_data)
+        await writer.drain()
 
-    elif response["status"] == "success":
-        print("Result:", response["result"])
+        print("Complex task sent!")
 
-    else:
-        print("Error:", response.get("error"))
+        size_data = await reader.readexactly(8)
+        result_size = int.from_bytes(size_data, "big")
 
-    print("========================================")
+        response_data = await reader.readexactly(result_size)
+        response = deserialize_result(response_data)
+
+        print("Server response:", response)
+
+        if response["status"] == "completed":
+            print("Remote execution result:", response["result"])
+        else:
+            print("Remote execution failed:", response["message"])
+
+    finally:
+        writer.close()
+        await writer.wait_closed()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="MeshWeaver TCP Task Networking"
-    )
-
-    parser.add_argument(
-        "mode",
-        choices=["server", "client"]
-    )
-
-    args = parser.parse_args()
-
-    if args.mode == "server":
+    if len(sys.argv) < 2:
+        print("Usage: python network_test.py server/client")
+    elif sys.argv[1] == "server":
         asyncio.run(start_server())
-
+    elif sys.argv[1] == "client":
+        asyncio.run(send_task())
     else:
-        asyncio.run(start_client())
+        print("Invalid argument. Use server or client.")

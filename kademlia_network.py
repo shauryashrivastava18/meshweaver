@@ -15,7 +15,7 @@ class KademliaNetwork:
         node_id=None,
         host="127.0.0.1",
         port=0,
-        bucket_size=3,
+        bucket_size=20,
         lookup_timeout=3
     ):
         self.network = network
@@ -49,7 +49,7 @@ class KademliaNetwork:
         return self.port
 
     async def handle_hello(self, message):
-        """Register a newly connected peer in the routing table."""
+        """Register a newly connected peer."""
 
         sender = message.get("sender")
         payload = message.get("payload", {})
@@ -100,12 +100,16 @@ class KademliaNetwork:
                 or isinstance(target_id, bool)
                 or target_id < 0
                 or not isinstance(request_id, str)
+                or not isinstance(sender, str)
             ):
                 return
 
             peers = self.routing_table.find_closest_peers(
                 target_id,
-                count=self.routing_table.bucket_size
+                count=max(
+                    self.routing_table.bucket_size,
+                    len(self.routing_table.peers)
+                )
             )
 
             peer_list = [
@@ -193,56 +197,66 @@ class KademliaNetwork:
         finally:
             self.pending.pop(request_id, None)
 
-    async def lookup(self, target_id, count=3, max_rounds=8):
-        """Iteratively discover closer peers."""
+    async def lookup(self, target_id, count=20, max_rounds=32):
+        """
+        Iteratively discover peers.
+
+        Each round queries every currently known, unqueried peer.
+        Newly discovered peers are added and queried in later rounds.
+        """
 
         queried = set()
 
         for _ in range(max_rounds):
-            candidates = self.routing_table.find_closest_peers(
-                target_id,
-                count=max(count, self.routing_table.bucket_size)
+            total_known = len(self.routing_table.peers)
+
+            search_count = max(
+                count,
+                self.routing_table.bucket_size,
+                total_known
             )
 
-            next_peer = None
+            candidates = self.routing_table.find_closest_peers(
+                target_id,
+                count=search_count
+            )
 
-            for peer_id, details in candidates:
-                if peer_id not in queried:
-                    next_peer = (peer_id, details)
-                    break
+            batch = [
+                (peer_id, details)
+                for peer_id, details in candidates
+                if peer_id not in queried
+            ]
 
-            if next_peer is None:
+            if not batch:
                 break
 
-            peer_id, details = next_peer
-            queried.add(peer_id)
+            for peer_id, details in batch:
+                queried.add(peer_id)
 
-            try:
-                if str(peer_id) not in self.network.connections:
-                    await self.network.connect(
-                        str(peer_id),
-                        details["ip_address"],
-                        details["port"]
+                try:
+                    discovered = await self.find_node(
+                        peer_id,
+                        target_id
                     )
 
-                discovered = await self.find_node(
-                    peer_id,
-                    target_id
-                )
-
-                for peer in discovered:
-                    if not isinstance(peer, dict):
+                    if not isinstance(discovered, list):
                         continue
 
-                    try:
-                        discovered_id = peer["node_id"]
-                        host = peer["host"]
-                        port = peer["port"]
+                    for peer in discovered:
+                        if not isinstance(peer, dict):
+                            continue
+
+                        discovered_id = peer.get("node_id")
+                        host = peer.get("host")
+                        port = peer.get("port")
 
                         if (
                             not isinstance(discovered_id, int)
                             or isinstance(discovered_id, bool)
+                            or discovered_id < 0
+                            or discovered_id == self.node_id
                             or not isinstance(host, str)
+                            or not host.strip()
                             or not isinstance(port, int)
                             or isinstance(port, bool)
                             or not 1 <= port <= 65535
@@ -255,15 +269,12 @@ class KademliaNetwork:
                             port
                         )
 
-                    except (KeyError, TypeError, ValueError):
-                        continue
-
-            except (
-                ConnectionError,
-                OSError,
-                asyncio.TimeoutError
-            ):
-                self.routing_table.remove_peer(peer_id)
+                except (
+                    ConnectionError,
+                    OSError,
+                    asyncio.TimeoutError
+                ):
+                    self.routing_table.remove_peer(peer_id)
 
         return self.routing_table.find_closest_peers(
             target_id,
@@ -288,11 +299,18 @@ class KademliaNetwork:
             bootstrap_port
         )
 
-        await self.lookup(self.node_id)
+        await self.lookup(
+            self.node_id,
+            count=self.routing_table.bucket_size,
+            max_rounds=32
+        )
 
         return self.routing_table.find_closest_peers(
             self.node_id,
-            count=self.routing_table.bucket_size
+            count=max(
+                self.routing_table.bucket_size,
+                len(self.routing_table.peers)
+            )
         )
 
     async def close(self):

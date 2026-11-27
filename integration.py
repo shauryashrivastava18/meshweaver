@@ -9,22 +9,20 @@ from bootstrap import Bootstrap
 from message_handler import MessageHandler
 from peer_network import PeerNetwork
 from kademlia_network import KademliaNetwork
+from gossip import GossipProtocol
 
 
 class MeshIntegration:
-    """Integrate MeshNode, TCP networking and Kademlia."""
+    """Integrate MeshNode, TCP, Kademlia and Gossip."""
 
     def __init__(self, host="127.0.0.1", port=5000):
         self.node = MeshNode(host, port)
-
         self.peer_registry = PeerRegistry()
 
-        # Convert UUID identity into a stable 128-bit integer.
         self.kademlia_node_id = uuid.UUID(
             self.node.node_id
         ).int
 
-        # TCP peer identity uses the Kademlia integer ID.
         self.peer_network = PeerNetwork(
             peer_id=str(self.kademlia_node_id),
             host=host,
@@ -48,10 +46,17 @@ class MeshIntegration:
             self.peer_registry
         )
 
+        self.gossip = GossipProtocol(
+            node_id=str(self.kademlia_node_id),
+            update_interval=5
+        )
+
+        self.gossip.attach_network(self.peer_network)
+
         self.started = False
 
     async def start_async(self, bootstrap_peer=None):
-        """Start the node and join the network."""
+        """Start networking, join the network and start Gossip."""
 
         if self.started:
             return
@@ -61,7 +66,6 @@ class MeshIntegration:
         try:
             await self.kademlia.start()
 
-            # Keep the actual listening port in node information.
             self.node.port = self.peer_network.port
 
             if bootstrap_peer is not None:
@@ -73,18 +77,25 @@ class MeshIntegration:
 
             self.started = True
 
+            # Start periodic CPU/RAM updates in background.
+            self.gossip.start_background()
+
             print("\nMeshWeaver Node Started")
             print(self.node.get_node_info())
             print("Kademlia Node ID:", self.kademlia_node_id)
             print("Listening Port:", self.peer_network.port)
+            print("Gossip interval: 5 seconds")
 
         except Exception:
+            await self.gossip.stop()
             await self.peer_network.close()
             self.node.stop()
             raise
 
     async def stop_async(self):
-        """Stop the TCP network and node."""
+        """Stop Gossip, TCP networking and the node."""
+
+        await self.gossip.stop()
 
         if self.started or self.peer_network.server is not None:
             await self.peer_network.close()
@@ -93,19 +104,17 @@ class MeshIntegration:
         self.started = False
 
     def start(self):
-        """Legacy synchronous startup for existing demonstrations."""
+        """Legacy synchronous startup."""
 
         self.node.start()
         self.bootstrap.join_network()
 
     def stop(self):
-        """Legacy synchronous stop for existing demonstrations."""
+        """Legacy synchronous stop."""
 
         self.node.stop()
 
     def prepare_ping(self):
-        """Prepare the legacy PING protocol message."""
-
         return create_message("PING", {
             "node_id": self.node.node_id,
             "host": self.node.host,
@@ -113,14 +122,10 @@ class MeshIntegration:
         })
 
     def process_response(self, response):
-        """Process a legacy protocol response."""
-
         decoded = decode_message(response)
         return self.message_handler.handle_message(decoded)
 
     def get_known_peers(self):
-        """Return currently known Kademlia peers."""
-
         return self.kademlia.routing_table.find_closest_peers(
             self.kademlia_node_id,
             count=20
@@ -128,8 +133,6 @@ class MeshIntegration:
 
 
 async def run_node(host="127.0.0.1", port=5000, bootstrap_peer=None):
-    """Run one asynchronous MeshWeaver node."""
-
     integration = MeshIntegration(host, port)
 
     try:
